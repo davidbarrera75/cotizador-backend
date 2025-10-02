@@ -1152,5 +1152,569 @@ class CotizadorExportService
   </body>
 </html>
 HTML;
+            <div>
+              <label
+                for="full-name"
+                class="block text-sm font-medium text-gray-700"
+                >Nombre completo</label
+              >
+              <div class="mt-1">
+                <input
+                  type="text"
+                  name="full-name"
+                  id="full-name"
+                  autocomplete="name"
+                  required
+                  class="py-3 px-4 block w-full shadow-sm focus:ring-blue-500 focus:border-blue-500 border-gray-300 rounded-md"
+                />
+              </div>
+            </div>
+            <div>
+              <label for="email" class="block text-sm font-medium text-gray-700"
+                >Email</label
+              >
+              <div class="mt-1">
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autocomplete="email"
+                  required
+                  class="py-3 px-4 block w-full shadow-sm focus:ring-blue-500 focus:border-blue-500 border-gray-300 rounded-md"
+                />
+              </div>
+            </div>
+            <div class="sm:col-span-2">
+              <label
+                for="phone-number"
+                class="block text-sm font-medium text-gray-700"
+                >Celular</label
+              >
+              <div class="mt-1">
+                <input
+                  type="text"
+                  name="phone-number"
+                  id="phone-number"
+                  autocomplete="tel"
+                  required
+                  class="py-3 px-4 block w-full shadow-sm focus:ring-blue-500 focus:border-blue-500 border-gray-300 rounded-md"
+                />
+              </div>
+            </div>
+            <div class="sm:col-span-2">
+              <div class="flex items-start">
+                <div class="flex-shrink-0">
+                  <input
+                    id="privacy-policy"
+                    name="privacy-policy"
+                    type="checkbox"
+                    required
+                    class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                </div>
+                <div class="ml-3">
+                  <p class="text-sm text-gray-600">
+                    Acepto la
+                    <a
+                      href="#"
+                      class="font-medium text-blue-600 hover:text-blue-500"
+                      >política de tratamiento de datos</a
+                    >.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div class="sm:col-span-2">
+              <button
+                type="submit"
+                id="submit-contact"
+                class="w-full inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Registrarme
+              </button>
+            </div>
+            <div class="sm:col-span-2">
+              <div id="form-message" class="hidden p-4 rounded-md"></div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      /* {{COTIZADOR_SLUG}} */
+      /* {{CONFIG_PLACEHOLDER}} */
+
+      document.addEventListener('DOMContentLoaded', () => {
+        const data = config;
+
+        const dom = {
+          header: {
+            title: document.getElementById('header-title'),
+            slogan: document.getElementById('header-slogan'),
+          },
+          planOptions: document.getElementById('plan-options'),
+          numAdultos: document.getElementById('numAdultos'),
+          numNinos: document.getElementById('numNinos'),
+          numNoches: document.getElementById('numNoches'),
+          numAlmuerzos: document.getElementById('numAlmuerzos'),
+          numCenas: document.getElementById('numCenas'),
+          ninoDescription: document.getElementById('nino-description'),
+          accommodationOptions: document.getElementById('accommodation-options'),
+          infoSections: document.getElementById('info-sections'),
+          summary: {
+            plan: document.getElementById('summary-plan'),
+            people: document.getElementById('summary-people'),
+            acomodacion: document.getElementById('summary-acomodacion'),
+            priceBreakdown: document.getElementById('summary-price-breakdown'),
+            adultPrice: document.getElementById('summary-adult-price'),
+            childPrice: document.getElementById('summary-child-price'),
+            adicionalesBreakdown: document.getElementById('summary-adicionales-breakdown'),
+            nochesPrice: document.getElementById('summary-noches-price'),
+            comidasPrice: document.getElementById('summary-comidas-price'),
+            totalPrice: document.getElementById('total-price'),
+            operatorInfo: document.getElementById('operator-info'),
+          },
+          error: {
+            container: document.getElementById('error-message'),
+            text: document.getElementById('error-text'),
+          },
+          whatsappButton: document.getElementById('whatsapp-button'),
+        };
+
+        let state = {
+          basePrice: 0,
+          selectedCombination: null,
+        };
+
+        const formatCurrency = (value) =>
+          new Intl.NumberFormat('es-CO', {
+            style: 'currency',
+            currency: 'COP',
+            minimumFractionDigits: 0,
+          }).format(value);
+
+        const roomTypes = {
+          4: 'Cuádruple',
+          3: 'Triple',
+          2: 'Doble',
+          1: 'Sencilla',
+        };
+
+        function findCombinations(target, start = 4, combination = {}) {
+          if (target === 0) return [combination];
+          if (target < 0 || start === 0) return [];
+          let results = [];
+          for (let i = Math.min(start, target); i >= 1; i--) {
+            const newCombination = { ...combination };
+            newCombination[i] = (newCombination[i] || 0) + 1;
+            const subResults = findCombinations(target - i, i, newCombination);
+            results = results.concat(subResults);
+          }
+          return results;
+        }
+
+        function combinationToString(combination) {
+          return Object.entries(combination)
+            .sort((a, b) => b[0] - a[0])
+            .map(([roomSize, count]) => `${count} ${roomTypes[roomSize]}`)
+            .join(' + ');
+        }
+
+        function calculateCombinationPrice(combination, plan, numNinos) {
+          let priceSlots = [];
+          const roomPrices = {
+            1: 'sencilla',
+            2: 'doble',
+            3: 'triple',
+            4: 'cuadruple',
+          };
+
+          for (const [roomSize, count] of Object.entries(combination)) {
+            const roomKey = roomPrices[roomSize];
+            const pricePerPerson = plan.prices[roomKey];
+            if (!isFinite(pricePerPerson))
+              return { total: Infinity, adultTotal: 0, childTotal: 0 };
+            for (let i = 0; i < count * parseInt(roomSize); i++) {
+              priceSlots.push(pricePerPerson);
+            }
+          }
+          priceSlots.sort((a, b) => a - b);
+          let adultTotal = 0;
+          let childTotal = 0;
+          for (let i = 0; i < priceSlots.length; i++) {
+            if (i < numNinos) {
+              childTotal += plan.prices.nino;
+            } else {
+              adultTotal += priceSlots[i];
+            }
+          }
+          const total = adultTotal + childTotal;
+          return { total, adultTotal, childTotal };
+        }
+
+        function calculateAdicionalesPrice() {
+          if (!state.selectedCombination)
+            return { nochesTotal: 0, comidasTotal: 0 };
+
+          const numNinos = parseInt(dom.numNinos.value) || 0;
+          const numAdultos = parseInt(dom.numAdultos.value) || 0;
+          const totalPersonas = numAdultos + numNinos;
+
+          const numNoches = parseInt(dom.numNoches.value) || 0;
+          const numAlmuerzos = parseInt(dom.numAlmuerzos.value) || 0;
+          const numCenas = parseInt(dom.numCenas.value) || 0;
+
+          const comidasTotal =
+            (numAlmuerzos + numCenas) * totalPersonas * (data.adicionales.comida || 0);
+
+          let nocheUnitariaTotal = 0;
+          if (numNoches > 0) {
+            const roomPrices = {
+              1: 'sencilla',
+              2: 'doble',
+              3: 'triple',
+              4: 'cuadruple',
+            };
+            let ninosToDistribute = numNinos;
+
+            for (const [roomSize, count] of Object.entries(state.selectedCombination)) {
+              for (let i = 0; i < count; i++) {
+                const roomKey = roomPrices[roomSize];
+                const pricePerPerson = data.adicionales.noche[roomKey] || 0;
+                for (let j = 0; j < roomSize; j++) {
+                  if (ninosToDistribute > 0) {
+                    nocheUnitariaTotal += data.adicionales.noche.nino || 0;
+                    ninosToDistribute--;
+                  } else {
+                    nocheUnitariaTotal += pricePerPerson;
+                  }
+                }
+              }
+            }
+          }
+          const nochesTotal = nocheUnitariaTotal * numNoches;
+
+          return { nochesTotal, comidasTotal };
+        }
+
+        function updateTotals() {
+          const adicionales = calculateAdicionalesPrice();
+          const totalAdicional = adicionales.nochesTotal + adicionales.comidasTotal;
+
+          dom.summary.nochesPrice.textContent = formatCurrency(adicionales.nochesTotal);
+          dom.summary.comidasPrice.textContent = formatCurrency(adicionales.comidasTotal);
+
+          dom.summary.adicionalesBreakdown.classList.toggle('hidden', totalAdicional <= 0);
+
+          dom.summary.totalPrice.textContent = formatCurrency(state.basePrice + totalAdicional);
+        }
+
+        function updateUI() {
+          const selectedPlanKey = document.querySelector('input[name="plan"]:checked')?.value;
+          if (!selectedPlanKey) return;
+
+          const plan = data.plans[selectedPlanKey];
+          const numAdultos = parseInt(dom.numAdultos.value) || 0;
+          const numNinos = parseInt(dom.numNinos.value) || 0;
+          const totalPersonas = numAdultos + numNinos;
+          let error = null;
+
+          if (totalPersonas < 1) error = 'Ingresa al menos 1 viajero.';
+          else if (numAdultos < 1 && numNinos > 0)
+            error = 'Debe haber al menos un adulto.';
+          else if (totalPersonas < plan.minPeople)
+            error = `Este plan requiere un mínimo de ${plan.minPeople} personas.`;
+
+          dom.ninoDescription.textContent = plan.nino_desc || '';
+          dom.summary.plan.textContent = plan.name;
+          dom.summary.people.textContent = `${totalPersonas} (${numAdultos} Adultos, ${numNinos} Niños)`;
+
+          dom.error.container.classList.toggle('hidden', !error);
+          if (error) {
+            dom.error.text.textContent = error;
+            dom.accommodationOptions.innerHTML = `<p class="text-gray-500 text-center">${error}</p>`;
+            resetSummary();
+            return;
+          }
+
+          const combinations = findCombinations(totalPersonas);
+
+          const pricedCombinations = combinations
+            .map((combo, index) => {
+              const prices = calculateCombinationPrice(combo, plan, numNinos);
+              return {
+                id: `combo-${index}`,
+                text: combinationToString(combo),
+                combination: JSON.stringify(combo),
+                prices: prices,
+              };
+            })
+            .filter((c) => isFinite(c.prices.total))
+            .sort((a, b) => a.prices.total - b.prices.total);
+
+          if (pricedCombinations.length > 0) {
+            dom.accommodationOptions.innerHTML = pricedCombinations
+              .map(
+                (combo) => `
+                        <div class="relative">
+                           <input type="radio" name="acomodacion" id="${combo.id}" 
+                                  value="${combo.prices.total}" 
+                                  data-text="${combo.text}" 
+                                  data-combination='${combo.combination}'
+                                  data-price-adult="${combo.prices.adultTotal}"
+                                  data-price-child="${combo.prices.childTotal}"
+                                  class="hidden acomodacion-radio">
+                           <label for="${combo.id}" class="flex justify-between items-center p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 hover:border-blue-300">
+                               <span class="font-medium text-gray-700">${combo.text}</span>
+                               <span class="font-bold text-lg text-blue-600">${formatCurrency(combo.prices.total)}</span>
+                           </label>
+                        </div>
+                    `
+              )
+              .join('');
+          } else {
+            dom.accommodationOptions.innerHTML = `<p class="text-gray-500 text-center">No hay acomodaciones válidas para este plan y número de personas.</p>`;
+          }
+
+          resetSummary();
+        }
+
+        function resetSummary() {
+          dom.summary.acomodacion.textContent = 'No seleccionada';
+          dom.summary.totalPrice.textContent = '$ 0';
+          dom.summary.priceBreakdown.classList.add('hidden');
+          dom.summary.adicionalesBreakdown.classList.add('hidden');
+          dom.summary.adultPrice.textContent = '$ 0';
+          dom.summary.childPrice.textContent = '$ 0';
+          dom.numNoches.value = 0;
+          dom.numAlmuerzos.value = 0;
+          dom.numCenas.value = 0;
+          state.basePrice = 0;
+          state.selectedCombination = null;
+          dom.whatsappButton.disabled = true;
+        }
+
+        function initializeApp() {
+          dom.header.title.textContent = data.hotelName;
+          document.title = `Cotizador - ${data.hotelName}`;
+          dom.header.slogan.textContent = data.hotelSlogan;
+          dom.summary.operatorInfo.textContent = data.operatorInfo;
+
+          dom.planOptions.innerHTML = Object.keys(data.plans)
+            .map(
+              (key) => `
+                    <div class="relative">
+                        <input type="radio" id="${key}" name="plan" value="${key}" class="hidden plan-radio">
+                        <label for="${key}" class="flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 hover:border-blue-400">
+                            <span class="font-semibold text-gray-800">${data.plans[key].name}</span>
+                            ${
+                              data.plans[key].minPeople > 1
+                                ? `<span class="text-xs text-gray-500">Mínimo ${data.plans[key].minPeople} personas</span>`
+                                : ''
+                            }
+                        </label>
+                    </div>`
+            )
+            .join('');
+
+          dom.infoSections.innerHTML = data.infoSections
+            .map(
+              (section) => `
+                    <div class="bg-white rounded-xl shadow-md">
+                        <details class="group p-6">
+                            <summary class="flex items-center justify-between cursor-pointer list-none">
+                                <h3 class="text-lg font-semibold text-gray-800">${section.title}</h3>
+                                <span class="transition group-open:rotate-180">
+                                    <svg fill="none" height="24" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="24"><path d="M6 9l6 6 6-6"></path></svg>
+                                </span>
+                            </summary>
+                            <div class="mt-4 text-gray-600">${section.content}</div>
+                        </details>
+                    </div>
+                `
+            )
+            .join('');
+
+          document.querySelector('input[name="plan"]').checked = true;
+          updateUI();
+        }
+
+        ['change', 'input'].forEach((evt) => {
+          dom.planOptions.addEventListener(evt, updateUI);
+          dom.numAdultos.addEventListener(evt, updateUI);
+          dom.numNinos.addEventListener(evt, updateUI);
+          dom.numNoches.addEventListener(evt, updateTotals);
+          dom.numAlmuerzos.addEventListener(evt, updateTotals);
+          dom.numCenas.addEventListener(evt, updateTotals);
+        });
+
+        dom.accommodationOptions.addEventListener('change', (e) => {
+          if (e.target.name === 'acomodacion') {
+            const selectedOption = e.target;
+            const numNinos = parseInt(dom.numNinos.value) || 0;
+
+            state.basePrice = parseFloat(selectedOption.value);
+            state.selectedCombination = JSON.parse(selectedOption.dataset.combination);
+
+            dom.summary.acomodacion.textContent = selectedOption.dataset.text;
+            dom.summary.adultPrice.textContent = formatCurrency(
+              parseFloat(selectedOption.dataset.priceAdult)
+            );
+            dom.summary.childPrice.textContent = formatCurrency(
+              parseFloat(selectedOption.dataset.priceChild)
+            );
+            dom.summary.priceBreakdown.classList.toggle('hidden', numNinos <= 0);
+
+            updateTotals();
+            dom.whatsappButton.disabled = false;
+          }
+        });
+
+        // Función para guardar cotización en el CRM
+        async function saveCotizacion(customerData = {}) {
+          const selectedPlanKey = document.querySelector('input[name="plan"]:checked')?.value;
+          const selectedAcomodacion = document.querySelector('input[name="acomodacion"]:checked');
+          if (!selectedPlanKey || !selectedAcomodacion) return;
+
+          const plan = data.plans[selectedPlanKey];
+          const numAdultos = parseInt(dom.numAdultos.value) || 0;
+          const numNinos = parseInt(dom.numNinos.value) || 0;
+          const numNoches = parseInt(dom.numNoches.value) || 0;
+          const numAlmuerzos = parseInt(dom.numAlmuerzos.value) || 0;
+          const numCenas = parseInt(dom.numCenas.value) || 0;
+
+          const adicionales = calculateAdicionalesPrice();
+
+          const payload = {
+            cotizador_slug: cotizadorSlug,
+            plan_selected: plan.name,
+            num_adultos: numAdultos,
+            num_ninos: numNinos,
+            acomodacion: selectedAcomodacion.dataset.text,
+            precio_base: state.basePrice,
+            precio_adicionales: adicionales.nochesTotal + adicionales.comidasTotal,
+            precio_total: state.basePrice + adicionales.nochesTotal + adicionales.comidasTotal,
+            noches_adicionales: numNoches,
+            almuerzos_adicionales: numAlmuerzos,
+            cenas_adicionales: numCenas,
+            customer_name: customerData.name || null,
+            customer_phone: customerData.phone || null,
+            customer_email: customerData.email || null,
+          };
+
+          try {
+            const response = await fetch('/api/cotizaciones', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+            return result.success;
+          } catch (error) {
+            console.error('Error al guardar cotización:', error);
+            return false;
+          }
+        }
+
+        dom.whatsappButton.addEventListener('click', async () => {
+          const selectedPlanKey = document.querySelector('input[name="plan"]:checked')?.value;
+          const selectedAcomodacion = document.querySelector('input[name="acomodacion"]:checked');
+          if (!selectedPlanKey || !selectedAcomodacion) return;
+
+          // Guardar cotización sin datos de contacto
+          await saveCotizacion();
+
+          const plan = data.plans[selectedPlanKey];
+          const numAdultos = parseInt(dom.numAdultos.value) || 0;
+          const numNinos = parseInt(dom.numNinos.value) || 0;
+          const totalPersonas = numAdultos + numNinos;
+
+          const numNoches = parseInt(dom.numNoches.value) || 0;
+          const numAlmuerzos = parseInt(dom.numAlmuerzos.value) || 0;
+          const numCenas = parseInt(dom.numCenas.value) || 0;
+
+          let priceBreakdownMessage = '';
+          if (numNinos > 0) {
+            priceBreakdownMessage =
+              `\n*Subtotal Adultos:* ${dom.summary.adultPrice.textContent}\n` +
+              `*Subtotal Niños:* ${dom.summary.childPrice.textContent}\n`;
+          }
+
+          let adicionalesMessage = '';
+          if (numNoches > 0 || numAlmuerzos > 0 || numCenas > 0) {
+            adicionalesMessage += '\n*Servicios Adicionales:*\n';
+            if (numNoches > 0)
+              adicionalesMessage += `- ${numNoches} Noche(s) Adicional(es): ${dom.summary.nochesPrice.textContent}\n`;
+            if (numAlmuerzos > 0 || numCenas > 0)
+              adicionalesMessage += `- Comidas Adicionales: ${dom.summary.comidasPrice.textContent}\n`;
+          }
+
+          let message =
+            `¡Hola! 👋 Me gustaría solicitar una cotización con los siguientes detalles:\n\n` +
+            `*Hotel/Tour:* ${data.hotelName}\n` +
+            `*Plan:* ${plan.name}\n` +
+            `*Total Viajeros:* ${totalPersonas} (${numAdultos} Adultos, ${numNinos} Niños)\n` +
+            `*Acomodación:* ${selectedAcomodacion.dataset.text}\n` +
+            `${priceBreakdownMessage}` +
+            `${adicionalesMessage}\n` +
+            `*TOTAL COTIZADO:* ${dom.summary.totalPrice.textContent}\n\n` +
+            `Quedo a la espera de su respuesta. ¡Gracias!`;
+
+          const encodedMessage = encodeURIComponent(message);
+          window.open(`https://wa.me/${data.whatsappNumber}?text=${encodedMessage}`, '_blank');
+        });
+
+        // Manejador del formulario de contacto
+        const contactForm = document.getElementById('contact-form');
+        const formMessage = document.getElementById('form-message');
+        const submitButton = document.getElementById('submit-contact');
+
+        contactForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+
+          // Deshabilitar botón
+          submitButton.disabled = true;
+          submitButton.textContent = 'Enviando...';
+
+          const customerData = {
+            name: document.getElementById('full-name').value,
+            email: document.getElementById('email').value,
+            phone: document.getElementById('phone-number').value,
+          };
+
+          const success = await saveCotizacion(customerData);
+
+          if (success) {
+            formMessage.className = 'p-4 rounded-md bg-green-100 border border-green-400 text-green-700';
+            formMessage.textContent = '¡Gracias! Hemos recibido tu información. Pronto nos pondremos en contacto contigo.';
+            formMessage.classList.remove('hidden');
+            contactForm.reset();
+          } else {
+            formMessage.className = 'p-4 rounded-md bg-red-100 border border-red-400 text-red-700';
+            formMessage.textContent = 'Hubo un error al enviar tu información. Por favor intenta nuevamente.';
+            formMessage.classList.remove('hidden');
+          }
+
+          // Rehabilitar botón
+          submitButton.disabled = false;
+          submitButton.textContent = 'Registrarme';
+
+          // Ocultar mensaje después de 5 segundos
+          setTimeout(() => {
+            formMessage.classList.add('hidden');
+          }, 5000);
+        });
+
+        initializeApp();
+      });
+    </script>
+  </body>
+</html>
+HTML;
     }
 }
