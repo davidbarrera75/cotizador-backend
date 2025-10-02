@@ -26,14 +26,29 @@ class AgencyResource extends Resource
                         ->label('Nombre')
                         ->required()
                         ->maxLength(255),
-                    
+
                     Forms\Components\TextInput::make('slug')
                         ->label('Slug')
                         ->required()
                         ->unique(ignoreRecord: true)
                         ->maxLength(255)
                         ->alphaDash(),
-                    
+
+                    Forms\Components\FileUpload::make('logo')
+                        ->label('Logo')
+                        ->image()
+                        ->disk('public')
+                        ->directory('agencies/logos')
+                        ->imageEditor()
+                        ->imageEditorAspectRatios([
+                            '16:9',
+                            '4:3',
+                            '1:1',
+                        ])
+                        ->maxSize(2048)
+                        ->helperText('Imagen del logo de la agencia (máx. 2MB)')
+                        ->columnSpanFull(),
+
                     Forms\Components\Select::make('plan')
                         ->label('Plan')
                         ->options([
@@ -43,11 +58,11 @@ class AgencyResource extends Resource
                         ])
                         ->required()
                         ->default('basic'),
-                    
+
                     Forms\Components\DateTimePicker::make('expires_at')
                         ->label('Fecha de Expiración')
                         ->required(),
-                    
+
                     Forms\Components\Toggle::make('active')
                         ->label('Activa')
                         ->default(true),
@@ -76,11 +91,17 @@ class AgencyResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\ImageColumn::make('logo')
+                    ->label('Logo')
+                    ->disk('public')
+                    ->circular()
+                    ->defaultImageUrl(url('/images/default-agency-logo.png')),
+
                 Tables\Columns\TextColumn::make('name')
                     ->label('Nombre')
                     ->searchable()
                     ->sortable(),
-                
+
                 Tables\Columns\TextColumn::make('slug')
                     ->label('Slug')
                     ->searchable()

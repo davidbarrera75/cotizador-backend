@@ -11,6 +11,7 @@ class Agency extends Model
     protected $fillable = [
         'name',
         'slug',
+        'logo',
         'plan',
         'expires_at',
         'active',
