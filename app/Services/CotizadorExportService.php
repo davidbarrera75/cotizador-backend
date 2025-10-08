@@ -12,17 +12,24 @@ class CotizadorExportService
     {
         // Convertir los datos del cotizador al formato JavaScript
         $config = $this->convertToJsConfig($cotizador);
-        
+
         // Leer la plantilla base
         $template = $this->getHtmlTemplate();
-        
+
         // Reemplazar el placeholder con la configuración
         $html = str_replace(
             '/* {{CONFIG_PLACEHOLDER}} */',
             $config,
             $template
         );
-        
+
+        // Agregar el slug del cotizador
+        $html = str_replace(
+            '/* {{COTIZADOR_SLUG}} */',
+            "const cotizadorSlug = '{$cotizador->slug}';",
+            $html
+        );
+
         // Guardar el archivo
         $filename = "cotizador-{$cotizador->slug}.html";
         $directory = "cotizadores";
