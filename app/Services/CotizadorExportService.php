@@ -1049,7 +1049,7 @@ class CotizadorExportService
         });
 
         // Manejar envío del formulario del modal
-        document.getElementById('whatsapp-form').addEventListener('submit', async (e) => {
+        document.getElementById('whatsapp-form').addEventListener('submit', (e) => {
           e.preventDefault();
 
           const customerData = {
@@ -1058,13 +1058,10 @@ class CotizadorExportService
             email: document.getElementById('modal-email').value || null,
           };
 
-          // Guardar cotización con datos del cliente
-          await saveCotizacion(customerData);
-
           // Cerrar modal
           dom.whatsappModal.classList.add('hidden');
 
-          // Abrir WhatsApp
+          // Abrir WhatsApp PRIMERO (antes de cualquier await)
           const selectedPlanKey = document.querySelector('input[name="plan"]:checked')?.value;
           const selectedAcomodacion = document.querySelector('input[name="acomodacion"]:checked');
           const plan = data.plans[selectedPlanKey];
@@ -1106,7 +1103,13 @@ class CotizadorExportService
             `Quedo a la espera de su respuesta. ¡Gracias!`;
 
           const encodedMessage = encodeURIComponent(message);
-          window.open(`https://wa.me/${data.whatsappNumber}?text=${encodedMessage}`, '_blank');
+
+          // Abrir WhatsApp inmediatamente (sin _blank en móviles)
+          const whatsappUrl = `https://wa.me/${data.whatsappNumber}?text=${encodedMessage}`;
+          window.location.href = whatsappUrl;
+
+          // Guardar cotización en segundo plano (después de abrir WhatsApp)
+          saveCotizacion(customerData).catch(err => console.error('Error guardando:', err));
 
           // Limpiar formulario del modal
           e.target.reset();
